@@ -1,0 +1,533 @@
+AWS Project Scope
+
+To deploy an end-to-end cloud infrastructure automation using terraform, ansible, docker, and Kubernetes.
+
+
+Step1
+	- Create an EC2 instance in AWS using ubuntu 22.04.
+
+Step2
+	- Connect to EC2 instance using putty
+
+Step 3 
+	- Install terraform and configure AWS CLI (using access id and secret id) in the terraform WS.
+
+Step 4
+	- Create a directory "terraform" and switch to path
+
+Step 5
+	- Create following files : provider.tf, sg.tf, key.tf and insatance.tf 
+	- Using these files we will be creating an EC2 instance for anisible
+
+Step 6
+	- Run following commands
+	- Terraform init, plan and apply to execute the script and wait for the EC2 instance to be created
+
+Step 7
+	- Once EC2 instance are successfully created you can ssh using below command
+	- Syntax -->   ssh ubuntu@privateip -i keyname
+	- If you are prompted with permission error
+	- Chmod 400 keyname
+
+Step 8 
+	- Install ansible in it and configure AWS CLI
+
+Step 9 
+	- Switch the directory to /etc and create a directory by name "anisble"
+	- Switch to path "cd /etc/anisble"
+
+Step 10
+	- Install docker and create a IAM role ?????
+
+Step 11
+	- Login to docker hub
+
+Step 12
+	- Create a directory name "docker" and switch to path
+
+Step 13
+	- Create THREE files - app.py, requirements.txt and Dockerfile (D must be capital)
+
+Step 14
+	- Docker build
+	- Login to docker hub
+	- Docker container run -d -p 80:5000 usename/appname:v1
+	- To verify using this command "docker ps"
+	- Login to docker hub
+	- Command - docker push usename/appname:v1
+	- Login to docker hub on the browser and verify if the image is visible in repository
+
+Step 15
+	- Now we will create a kubernetes cluster and deploy and the BookStore app
+	- Use the kpos.sh ( shared in project )
+	- ./kops.sh 
+	- If you get permission error use chmod to grand permission 775
+
+Step 16
+	- Login to AWS console and verify if you have ONE Master and TWO Worker Nodes created
+
+Step 17
+	- Access the master node
+	- Connect to console
+	- We will create pod  "vi pod.yaml"  [ use the script shared]
+	- kubectl apply -f pod.yaml
+	-  kubectl get pods
+	- kubectl expose pod mypod --type NodePort --port 5000
+	- kubectl get svc
+
+
+	ubuntu@i-0147e45e704ccc4c6:~$ kubectl get svc
+	NAME         TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)          AGE
+	kubernetes   ClusterIP   100.64.0.1      <none>        443/TCP          31m
+	mypod        NodePort    100.69.136.35   <none>        5000:32276/TCP   14s
+	
+
+Step 18
+	- Open web browser  
+	- Use public ip and port from above command
+            http://44.197.119.247:32276/  
+
+
+terraform
+
+06 March 2024
+21:44
+
+root@ip-172-31-0-46:~/terraform#
+root@ip-172-31-0-46:~/terraform#
+root@ip-172-31-0-46:~/terraform# history
+    1  mkdir terraform
+    2  cd terraform
+    3  cd ..
+    4  sudo apt update
+    5  sudo apt install wget unzip -y
+    6  wget https://releases.hashicorp.com/terraform/1.0.11/terraform_1.0.11_linux_amd64.zip
+    7  sudo mv terraform /usr/local/bin
+    8  sudo apt-get install python3-pip -y
+    9  sudo pip3 install awscli
+   10  aws configure
+   11  cd terraform
+   12  mkdir terraform
+   13  cd terraform
+root@ip-172-31-0-46:~/terraform# ls -l
+total 76
+-rw-r--r-- 1 root root   431 Mar  6 12:33 instance.tf
+-rw-r--r-- 1 root root   302 Mar  5 09:00 key.tf
+-rw-r--r-- 1 root root    48 Mar  5 08:15 provider.tf
+-rw-r--r-- 1 root root   328 Mar  5 08:16 sg.tf
+-rw-r--r-- 1 root root 25572 Mar  6 12:35 terraform.tfstate
+-rw-r--r-- 1 root root 25523 Mar  6 12:35 terraform.tfstate.backup
+-r-------- 1 root root  3243 Mar  5 09:03 tfkey
+root@ip-172-31-0-46:~/terraform#
+root@ip-172-31-0-46:~/terraform#
+root@ip-172-31-0-46:~/terraform# cat instance.tf
+#cat instance1.tf
+resource "aws_instance" "Mywebserver1" {
+  instance_type  = "t2.micro"
+  ami            = "ami-07d9b9ddc6cd8dd30"
+  subnet_id = "subnet-03b016bac1a5aad58"
+  associate_public_ip_address = "true"
+  key_name       = "TF_key"
+  depends_on = [ aws_key_pair.TF_key ]
+#  security_groups = [aws_security_group.my_sg]
+  vpc_security_group_ids = [aws_security_group.my_sg.id]
+  tags = {
+    Name = "Ansi-instance"
+  }
+}
+root@ip-172-31-0-46:~/terraform#
+root@ip-172-31-0-46:~/terraform#
+root@ip-172-31-0-46:~/terraform# cat key.tf
+resource "aws_key_pair" "TF_key" {
+  key_name   = "TF_key"
+  public_key = tls_private_key.rsa.public_key_openssh
+}
+
+resource "tls_private_key" "rsa" {
+  algorithm = "RSA"
+  rsa_bits  = 4096
+}
+
+resource "local_file" "TF-key" {
+    content  = tls_private_key.rsa.private_key_pem
+    filename = "tfkey"
+}
+root@ip-172-31-0-46:~/terraform#
+root@ip-172-31-0-46:~/terraform#
+root@ip-172-31-0-46:~/terraform# cat provider.tf
+provider "aws" {
+  region     = "us-east-1"
+}
+
+
+root@ip-172-31-0-46:~/terraform#
+root@ip-172-31-0-46:~/terraform#
+root@ip-172-31-0-46:~/terraform# cat sg.tf
+resource "aws_security_group" "my_sg" {
+  name        = "my_sg"
+  description = "My Security Group"
+egress {
+        from_port   = 0
+        to_port     = 0
+        protocol    = "-1"
+        cidr_blocks = ["0.0.0.0/0"]
+}
+ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+}
+}
+root@ip-172-31-0-46:~/terraform#
+root@ip-172-31-0-46:~/terraform#
+root@ip-172-31-0-46:~/terraform# ls -l
+total 76
+-rw-r--r-- 1 root root   431 Mar  6 12:33 instance.tf
+-rw-r--r-- 1 root root   302 Mar  5 09:00 key.tf
+-rw-r--r-- 1 root root    48 Mar  5 08:15 provider.tf
+-rw-r--r-- 1 root root   328 Mar  5 08:16 sg.tf
+-rw-r--r-- 1 root root 25572 Mar  6 12:35 terraform.tfstate
+-rw-r--r-- 1 root root 25523 Mar  6 12:35 terraform.tfstate.backup
+-r-------- 1 root root  3243 Mar  5 09:03 tfkey
+root@ip-172-31-0-46:~/terraform#
+
+root@ip-172-31-0-46:~/terraform#
+root@ip-172-31-0-46:~/terraform# history
+    1  mkdir terraform
+    2  cd terraform
+    3  cd ..
+    4  sudo apt update
+    5  sudo apt install wget unzip -y
+    6  wget https://releases.hashicorp.com/terraform/1.0.11/terraform_1.0.11_linux_amd64.zip
+    7  sudo mv terraform /usr/local/bin
+    8  sudo apt-get install python3-pip -y
+    9  sudo pip3 install awscli
+   10  aws configure
+   11  cd terraform
+   12  mkdir terraform
+   13  cd terraform
+   14  vi provider.tf
+   15  vi sg.tf
+   16  vi key.tf
+   17  vi instance.tf
+   18  terraform init
+   19  snap install terraform
+   20  snap install terraform --classic
+   21  terraform init
+   22  vi instance.tf
+   23  terraform init
+   24  terraform plan
+   25  vi key.tf
+   26  cat kry.tf
+   27  cat key.tf
+   28  vi instance.tf
+   29  terraform plan
+   30  terraform applt
+   31  terraform apply
+   32  ls -l
+   33  ssh -i ubuntu@172.31.0.231 newtfkey
+   34  ssh -i ec2@172.31.0.231 newtfkey
+   35  ssh-keygen -f newtfkey
+   36  ssh -i ec2-user@172.31.0.231 newtfkey
+   37  ssh -i ubuntu-user@172.31.0.231 newtfkey
+   38  ssh ec2-user@172.31.0.231 -i newtfkey
+   39  chmod 777 newtfkey
+   40  ssh ec2-user@172.31.0.231 -i newtfkey
+   41  chmod 400 newtfkey
+   42  ssh ec2-user@172.31.0.231 -i newtfkey
+   43  chmod 755 newtfkey
+   44  ssh ec2-user@172.31.0.231 -i newtfkey
+   45  cat newtfkey
+   46  vi key.tf
+   47  vi instance.tf
+   48  cat key.tf
+   49  vi instance.tf
+   50  terraform apply
+   51  ls -l
+   52  ssh ec2-user@172.31.0.231 -i tfkey
+   53  ssh ec2-user@172.31.0.171 -i tfkey
+   54  chmod 400 tfkey
+   55  ssh ec2-user@172.31.0.171 -i tfkey
+   56  chmod 755 tfkey
+   57  ssh ec2-user@172.31.0.171 -i tfkey
+   58  chmod 400 tfkey
+   59  ssh ec2-user@172.31.0.171 -i tfkey
+   60  ls -l
+   61  cat tfkey
+   62  chmod 400 tfkey
+   63  ls -l
+   64  ssh ec2-user@172.31.0.171 -i tfkey
+   65  ssh ubuntu-user@172.31.0.171 -i tfkey
+   66  ssh ubuntu@172.31.0.171 -i tfkey
+   67  ls -l
+   68  cd terraform
+   69  ls -l
+   70  instance.tf
+   71  vi instance.tf
+   72  terraform apply
+   73  vi instance.tf
+   74  terraform apply
+   75  vi instance.tf
+   76  terraform apply
+   77  ssh ubuntu@172.31.0.16 -i tfkey
+   78  history
+   79  ls -l
+   80  cat instance.tf
+   81  cat key.tf
+   82  cat provider.tf
+   83  cat sg.tf
+   84  history
+   85  ssh ubuntu@172.31.0.16 -i tfkey
+   86  history
+root@ip-172-31-0-46:~/terraform#
+
+
+
+
+Ansible
+
+06 March 2024
+21:12
+
+    1  apt get update
+    2  sudo apt update
+    3  sudo apt install python3 python3-pip wget -y
+    4  sudo pip3 install awscli boto boto3 ansible
+    5  ansible --version
+    6  aws configure
+    7  localhost ansible_connection=local
+    8  cd etc
+    9  cd /etc
+   10  mkdir ansible
+   11  cd ansible
+   12  exit
+   13  ls -l
+   14  history
+   15  vi hosts
+   16  cd /etc
+   17  ls -l
+   18  cat hosts
+
+
+Docker
+
+06 March 2024
+21:01
+
+root@ip-172-31-0-16:/docker# ls -l
+total 56
+-rw-r--r-- 1 root   root     201 Mar  6 13:37 Dockerfile
+-rw-r--r-- 1 root   root    1356 Mar  6 13:36 app.py
+-rwxr-xr-x 1 ubuntu ubuntu   133 Mar  6 14:09 delete-kops.sh
+-rw-r--r-- 1 root   root    2657 Mar  6 14:09 delete.txt
+-rwxrwxr-x 1 root   root   12425 Mar  6 14:03 kops.sh
+-rw-r--r-- 1 root   root    8099 Mar  6 14:09 kubernetes-dashboard.yaml
+-rw-r--r-- 1 root   root      29 Mar  6 13:34 requirements.txt
+-rw-r--r-- 1 root   root     395 Mar  6 14:09 status.txt
+-rw-r--r-- 1 root   root      60 Mar  6 14:09 status1.txt
+-rw-r--r-- 1 root   root    1336 Mar  6 14:09 token.txt
+root@ip-172-31-0-16:/docker#
+
+
+root@ip-172-31-0-16:/docker# cat requirements.txt
+Flask==1.0.1
+requests==2.8.1
+root@ip-172-31-0-16:/docker#
+
+
+root@ip-172-31-0-16:/docker#
+root@ip-172-31-0-16:/docker# cat app.py
+#!/usr/bin/env python3.8
+# -*- coding: utf-8 -*-
+import os
+
+from flask import Flask, jsonify, request
+
+app = Flask(__name__)
+
+notes = [
+    {
+        "author": "hightower",
+        "title": "Kubernetes up and Running"
+    },
+    {
+        "author": "navathe",
+        "title": "Database Fundamentals"
+    },
+    {
+        "author": "ritchie",
+        "title": "Let us C"
+    }
+]
+
+@app.route("/")
+def hello():
+    return "Welcome to my bookstore!"
+
+@app.route("/v1/books/")
+def list_all_books():
+    list = []
+    for item in notes:
+       list.append({'book':item['title']})
+    return jsonify(list)
+
+@app.route("/v1/books/<string:author>")
+def get_by_author(author):
+    for item in notes:
+            if item['author'] == author:
+               data = item
+    return jsonify(data)
+    if not item:
+        return jsonify({'error': 'Author does not exist'}), 404
+
+@app.route("/v1/books/", methods=["POST"])
+def add_book():
+    author = request.json.get('author')
+    book = request.json.get('title')
+    if not author or not book:
+        return jsonify({'error': 'Please provide Author and Title'}), 400
+    else:
+        data = request.get_json()
+        notes.append(data)
+        return jsonify({'message': 'Added book successfully','author':author,'book': book}),200
+
+if __name__ == '__main__':
+    app.run(threaded=True, host='0.0.0.0', port=5000)
+root@ip-172-31-0-16:/docker#
+root@ip-172-31-0-16:/docker#
+root@ip-172-31-0-16:/docker#
+
+
+root@ip-172-31-0-16:/docker#
+root@ip-172-31-0-16:/docker# cat Dockerfile
+FROM ubuntu:18.04
+LABEL maintainer="subhashree"
+RUN apt-get update -y && apt-get install -y python-dev python-pip
+COPY . /app
+WORKDIR /app
+RUN pip install -r requirements.txt
+CMD ["python", "app.py" ]
+root@ip-172-31-0-16:/docker#
+
+
+root@ip-172-31-0-16:/docker# history
+   19  mkdir ansible
+   20  ls -l
+   21  cd ansible
+   22  sudo apt-get update
+   23  sudo apt-get install ca-certificates curl
+   24  sudo install -m 0755 -d /etc/apt/keyrings
+   25  sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+   26  sudo chmod a+r /etc/apt/keyrings/docker.asc
+   27  echo   "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" |   sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+   28  echo   "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" |   sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+   29  echo   "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" |   sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+   30  sudo apt-get update
+   31  sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+   32  docker --version
+   33  sudo docker run hello-world
+   34  vi requirements.txt
+   35  rm requirements.txt
+   36  cd ..
+   37  vi hosts
+   38  cat hosts
+   39  sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+   40  sudo docker run hello-world
+   41  cd anisible
+   42  cd ansible
+   43  cd ..
+   44  mkdir docker
+   45  cd docker
+   46  vi requirements.txt
+   47  vi app.py
+   48  vi Dockerfile
+   49  docker container run  -d -p 80:5000 subhashree846/testappnew:v1
+   50  docker login
+   51  docker container run  -d -p 80:5000 subhashree846/testappnew:v1
+   52  docker build -t subhashree846/testappnew:v1
+   53  docker buildx build --help
+   54  docker build -t subhashree846/testappnew:v1 .
+   55  docker container run  -d -p 80:5000 subhashree846/testappnew:v1
+   56  docker ps
+   57  docker login -u subhashree846
+   58  docker push subhashree846/testappnew:v1
+   59  docker run -d -p 80:5000 subhashree846/testappnew:v1
+   60  docker ps
+   61  ls -l
+   62  vo kpos.sh
+   63  vi kops.sh
+   64  ls -l
+   65  ./kops.sh
+   66  chmod 775 kops.sh
+   67  ./kops.sh
+   68  history
+   69  ls -l
+   70  cat Dockerfile
+   71  cat app.py
+   72  ls -l
+   73  cat requirements.txt
+   74  history
+
+
+
+Kubernetes
+
+06 March 2024
+21:04
+
+Step 1 - Connect to master node 
+Step2 - create pod.yaml
+vi  pod.yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: mypod
+  labels:
+    app: testappnew 
+spec:
+  containers:
+  - name: testappnew 
+    image: subhashree846/testappnew:v1
+    ports:
+      - containerPort: 5000
+
+Step 3 
+ubuntu@i-0147e45e704ccc4c6:~$ kubectl apply -f pod.yaml
+pod/mypod created
+ubuntu@i-0147e45e704ccc4c6:~$ 
+
+step 4 
+ubuntu@i-0147e45e704ccc4c6:~$ kubectl get pods
+NAME    READY   STATUS              RESTARTS   AGE
+mypod   0/1     ContainerCreating   0          8s
+ubuntu@i-0147e45e704ccc4c6:~$ kubectl get pods
+NAME    READY   STATUS    RESTARTS   AGE
+mypod   1/1     Running   0          18s
+ubuntu@i-0147e45e704ccc4c6:~$ 
+
+Step 5 
+ubuntu@i-0147e45e704ccc4c6:~$ kubectl expose pod mypod --type NodePort --port 5000
+service/mypod exposed
+ubuntu@i-0147e45e704ccc4c6:~$ 
+
+Step 6
+ubuntu@i-0147e45e704ccc4c6:~$ kubectl get svc
+NAME         TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)          AGE
+kubernetes   ClusterIP   100.64.0.1      <none>        443/TCP          31m
+mypod        NodePort    100.69.136.35   <none>        5000:32276/TCP   14s
+ubuntu@i-0147e45e704ccc4c6:~$
+
+- Open web browser  
+- Use public ip and port from above command
+            http://44.197.119.247:32276/  
+
+
+
+
+
+
+
